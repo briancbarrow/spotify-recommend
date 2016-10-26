@@ -21,11 +21,12 @@ var getFromApi = function(endpoint, args) {
 
 var getRelatedArtists = function(id) {
     var emitter = new events.EventEmitter();
-    unirest.get('https://api.spotify.com/v1/artist/' + id + '/related-artists')
+    unirest.get('https://api.spotify.com/v1/artists/' + id + '/related-artists/')
         .end(function(response) {
             if (response.ok) {
                 emitter.emit('end', response.body);
             } else {
+                console.log('Testing in function');
                 emitter.emit('error', response.code);
             }
         });
@@ -44,8 +45,10 @@ app.get('/search/:name', function(req, res) {
     searchReq.on('end', function(item) {
         var artist = item.artists.items[0];
         var id = artist.id;
-        var relatedReq = getFromApi('artists/' + id + '/related-artists/');
+        // var relatedReq = getFromApi('artists/' + id + '/related-artists/');
+        var relatedReq = getRelatedArtists(id);
         relatedReq.on('end', function(item) {
+            console.log('test');
             artist.related = item.artists;
             res.json(artist);
         });
