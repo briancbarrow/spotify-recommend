@@ -26,14 +26,25 @@ var getRelatedArtists = function(id) {
             if (response.ok) {
                 emitter.emit('end', response.body);
             } else {
-                console.log('Testing in function');
                 emitter.emit('error', response.code);
             }
         });
     return emitter;
 };
 
-
+var getTopTracks = function(id) {
+    var emitter = new events.EventEmitter();
+    unirest.get('https://api.spotify.com/v1/artists/' + id + '/top-tracks')
+        .qs({country: 'US'})
+        .end(function(response) {
+            if (response.ok) {
+                emitter.emit('end', response.body);
+            } else {
+                emitter.emit('error', response.code);
+            }
+        });
+    return emitter;
+};
 
 app.get('/search/:name', function(req, res) {
     var searchReq = getFromApi('search', {
@@ -43,19 +54,46 @@ app.get('/search/:name', function(req, res) {
     });
 
     searchReq.on('end', function(item) {
+        var relatedComplete = false;
+        var topComplete = false;
+        var complete = 0;
+        var count = 0;
+        var checkComplete = function() {
+            if (relatedComplete && topComplete) {
+                res.json(artist);
+            }
+        };
+        var checkTopComplete = function() {
+            if (complete === count) {
+                topComplete = true;
+                checkComplete();
+            }
+        };
         var artist = item.artists.items[0];
         var id = artist.id;
         // var relatedReq = getFromApi('artists/' + id + '/related-artists/');
         var relatedReq = getRelatedArtists(id);
         relatedReq.on('end', function(item) {
-            console.log('test');
             artist.related = item.artists;
-            res.json(artist);
+            count = artist.related.length;
+            artist.related.forEach(function(artist) {
+                var relId = artist.id;
+                var topReq = getTopTracks(relId);
+                topReq.on('end', function(item) {
+                    artist.tracks = item.tracks;
+                    complete++;
+                    checkTopComplete();
+                });
+                topReq.on('error', function(code) {
+                    res.sendStatus(code);
+                });
+            });
+            relatedComplete = true;
+            checkComplete();
         });
         relatedReq.on('error', function(code) {
             res.sendStatus(code);
         });
-        
     });
 
     searchReq.on('error', function(code) {
